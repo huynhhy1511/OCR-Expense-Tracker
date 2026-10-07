@@ -1,0 +1,2129 @@
+# ROLE
+
+Bạn là một Senior Flutter Engineer + Mobile Architect + QA Engineer.
+Hãy **trực tiếp triển khai hoàn chỉnh toàn bộ project** theo specification bên dưới trong repository hiện tại.
+
+Mục tiêu là tạo ra một ứng dụng Flutter chạy Android hoàn chỉnh có tên:
+
+**OCR Expense Tracker & Receipt Parser**
+
+Ứng dụng cho phép người dùng:
+
+```text
+Chụp hóa đơn
+→ Crop hóa đơn
+→ OCR bằng Google ML Kit trên thiết bị
+→ Parse Merchant / Total / Date bằng Regex + Heuristic
+→ Cho người dùng review và chỉnh sửa
+→ Chọn Category
+→ Lưu SQLite
+→ Lưu thumbnail hóa đơn local
+→ Hiển thị lịch sử
+→ Tính thống kê
+→ Vẽ Donut/Pie Chart + Weekly Bar Chart bằng CustomPainter
+```
+
+Không dùng backend/cloud database cho core functionality.
+
+---
+
+# 1. NGUYÊN TẮC LÀM VIỆC
+
+Bạn phải làm việc như một autonomous coding agent.
+
+## Bắt buộc
+
+1. Tự kiểm tra repository hiện tại trước khi chỉnh sửa.
+2. Kiểm tra:
+
+   * Flutter version
+   * Dart version
+   * Android SDK
+   * Gradle/AGP configuration
+   * cấu trúc source hiện tại
+3. Nếu repository đã có code:
+
+   * tận dụng code hợp lý
+   * không xóa tính năng đang hoạt động nếu không cần
+   * refactor có kiểm soát
+4. Nếu repository chưa có project Flutter phù hợp:
+
+   * tạo/cấu hình project hoàn chỉnh.
+5. Tự chọn phiên bản package tương thích với Flutter/Dart hiện tại.
+6. Không dùng package cũ không tương thích nếu có package/version ổn định hơn.
+7. Không hỏi lại các quyết định kỹ thuật thông thường.
+8. Khi gặp lỗi dependency/version:
+
+   * tự chẩn đoán
+   * sửa
+   * chạy lại
+   * chỉ dừng khi thực sự bị chặn bởi môi trường/credential không thể tự xử lý.
+9. Sau mỗi major milestone phải chạy kiểm tra/build phù hợp.
+10. Không đánh dấu feature là complete nếu chưa thực sự code và test.
+11. Cuối cùng phải build release APK nếu môi trường cho phép.
+12. Phải cập nhật README với hướng dẫn chạy project.
+13. Phải tạo technical report 2–4 trang ở định dạng PDF.
+14. Không sử dụng third-party chart library.
+15. Donut/Pie chart và Weekly Bar Chart phải dùng `CustomPainter`.
+
+---
+
+# 2. TECHNOLOGY STACK
+
+Ưu tiên stack:
+
+```text
+Flutter 3.x
+Dart 3
+Google ML Kit Text Recognition
+SQLite / sqflite
+CustomPainter
+Provider hoặc Riverpod
+Camera package
+Image crop package
+Path Provider
+Intl
+```
+
+Package nên được lựa chọn theo compatibility thực tế của môi trường.
+
+Tối thiểu cần các nhóm chức năng:
+
+```text
+camera
+google_mlkit_text_recognition
+image cropping
+sqflite
+path_provider
+state management
+intl
+```
+
+Có thể thêm package phụ trợ cần thiết cho:
+
+```text
+permissions
+image compression/resizing
+UUID/file naming
+testing
+```
+
+nhưng phải tránh dependency không cần thiết.
+
+---
+
+# 3. CORE FUNCTIONAL FLOW
+
+Implement toàn bộ flow:
+
+```text
+Dashboard
+    ↓
+Scan Receipt
+    ↓
+Camera Screen
+    ↓
+Capture
+    ↓
+Crop Receipt
+    ↓
+OCR Processing
+    ↓
+Google ML Kit Text Recognition
+    ↓
+Raw OCR Text
+    ↓
+Receipt Parser
+    ↓
+Merchant + Amount + Date
+    ↓
+Review Screen
+    ↓
+Manual Edit
+    ↓
+Category Selection
+    ↓
+Save
+    ↓
+SQLite
+    ↓
+Receipt Thumbnail Local Storage
+    ↓
+History
+    ↓
+Dashboard statistics
+    ↓
+CustomPainter charts
+```
+
+Đây là primary end-to-end scenario và phải chạy được.
+
+---
+
+# 4. PROJECT ARCHITECTURE
+
+Không được dồn logic vào `main.dart`.
+
+Sử dụng kiến trúc có separation of concerns.
+
+Ưu tiên cấu trúc:
+
+```text
+lib/
+│
+├── main.dart
+│
+├── app/
+│   ├── app.dart
+│   └── theme.dart
+│
+├── models/
+│   └── expense.dart
+│
+├── database/
+│   ├── database_helper.dart
+│   └── expense_dao.dart
+│
+├── repositories/
+│   └── expense_repository.dart
+│
+├── services/
+│   ├── camera_service.dart
+│   ├── ocr_service.dart
+│   ├── receipt_parser.dart
+│   ├── image_service.dart
+│   └── storage_service.dart
+│
+├── providers/
+│   └── expense_provider.dart
+│
+├── screens/
+│   ├── dashboard/
+│   │   └── dashboard_screen.dart
+│   │
+│   ├── scanner/
+│   │   ├── camera_screen.dart
+│   │   ├── crop_screen.dart
+│   │   └── processing_screen.dart
+│   │
+│   ├── review/
+│   │   └── review_expense_screen.dart
+│   │
+│   ├── history/
+│   │   └── expense_history_screen.dart
+│   │
+│   └── detail/
+│       └── expense_detail_screen.dart
+│
+├── widgets/
+│   ├── expense_card.dart
+│   ├── stat_card.dart
+│   ├── category_chip.dart
+│   ├── receipt_frame.dart
+│   ├── expense_donut_chart.dart
+│   └── weekly_bar_chart.dart
+│
+└── utils/
+    ├── constants.dart
+    ├── currency_utils.dart
+    ├── date_utils.dart
+    └── validators.dart
+```
+
+Có thể điều chỉnh cấu trúc nếu architecture tốt hơn, nhưng phải giữ separation giữa:
+
+```text
+UI
+State
+Services
+Parsing
+Repository
+Database
+Storage
+```
+
+---
+
+# 5. DATA MODEL
+
+Tạo model:
+
+```text
+Expense
+```
+
+Fields:
+
+```text
+id
+merchant
+amount
+transactionDate
+category
+receiptImagePath
+ocrText
+createdAt
+```
+
+Database table:
+
+```sql
+CREATE TABLE expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    merchant TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    transaction_date TEXT NOT NULL,
+    category TEXT NOT NULL,
+    receipt_image_path TEXT,
+    ocr_text TEXT,
+    created_at TEXT NOT NULL
+);
+```
+
+Amount nên lưu dạng integer theo đơn vị VND.
+
+Ví dụ:
+
+```text
+150000
+```
+
+không lưu:
+
+```text
+"150,000 VND"
+```
+
+UI mới format thành:
+
+```text
+150,000 ₫
+```
+
+---
+
+# 6. CATEGORIES
+
+Bắt buộc có:
+
+```text
+Food
+Study
+Travel
+Gear
+Entertainment
+```
+
+Category phải được dùng cho:
+
+* review form
+* expense list
+* statistics
+* donut chart
+* filtering nếu implement
+* dashboard summary
+
+---
+
+# 7. DASHBOARD SCREEN
+
+Tạo Dashboard hiện đại theo Material 3.
+
+Dashboard phải hiển thị:
+
+## Header
+
+```text
+OCR Expense Tracker
+```
+
+## Total spending
+
+Hiển thị tổng chi tiêu theo khoảng thời gian hợp lý.
+
+## Category summary
+
+Các category:
+
+```text
+Food
+Study
+Travel
+Gear
+Entertainment
+```
+
+## Donut/Pie chart
+
+Hiển thị phân bố chi tiêu theo category.
+
+## Weekly spending bar chart
+
+Hiển thị tổng chi tiêu 7 ngày.
+
+## Recent expenses
+
+Hiển thị các giao dịch gần nhất.
+
+## Primary scan button
+
+Nút:
+
+```text
+Scan Receipt
+```
+
+nổi bật và dễ truy cập.
+
+---
+
+# 8. CAMERA SCREEN
+
+Implement camera screen sử dụng camera plugin.
+
+Bắt buộc:
+
+## 8.1 Camera Preview
+
+Preview full-screen.
+
+## 8.2 Flash Toggle
+
+Có nút bật/tắt flash.
+
+States:
+
+```text
+OFF
+ON
+```
+
+## 8.3 Tap Focus
+
+Cho phép người dùng tap vào vị trí bất kỳ trong camera preview để focus.
+
+Nếu camera implementation hỗ trợ exposure point, có thể hỗ trợ thêm exposure.
+
+## 8.4 Receipt Framing Overlay
+
+Vẽ overlay giúp người dùng đặt hóa đơn vào đúng khu vực.
+
+Ví dụ:
+
+```text
+┌──────────────────────────────┐
+│                              │
+│       ┌──────────────┐       │
+│       │              │       │
+│       │   RECEIPT    │       │
+│       │    AREA      │       │
+│       │              │       │
+│       └──────────────┘       │
+│                              │
+│                              │
+│               [ Capture ]    │
+└──────────────────────────────┘
+```
+
+Overlay nên là widget riêng.
+
+---
+
+# 9. IMAGE CAPTURE & CROP
+
+Sau khi chụp:
+
+```text
+Camera image
+    ↓
+Crop screen
+    ↓
+User chỉnh crop
+    ↓
+Confirm
+```
+
+Có thể dùng image crop package miễn phù hợp.
+
+Không cần cố gắng xử lý crop live quá phức tạp.
+
+Framing overlay và crop editing là hai bước khác nhau.
+
+---
+
+# 10. OCR SERVICE
+
+Tạo:
+
+```text
+OcrService
+```
+
+Responsibility:
+
+```text
+Input:
+image path
+
+Output:
+raw OCR text
+```
+
+Flow:
+
+```text
+XFile/File
+    ↓
+InputImage
+    ↓
+TextRecognizer
+    ↓
+RecognizedText
+    ↓
+raw text
+```
+
+Không cloud API.
+
+Không upload receipt lên server.
+
+OCR phải thực hiện bằng Google ML Kit trên thiết bị.
+
+Đóng `TextRecognizer` đúng lifecycle để tránh resource leak.
+
+---
+
+# 11. OCR PROCESSING SCREEN
+
+Sau crop:
+
+```text
+Processing receipt...
+```
+
+Có loading animation.
+
+Flow:
+
+```text
+Image
+ ↓
+OCR
+ ↓
+Parser
+ ↓
+ParsedReceipt
+ ↓
+Review Screen
+```
+
+Có error state:
+
+```text
+Unable to read receipt
+Please try another photo
+```
+
+Không để app crash nếu OCR thất bại.
+
+---
+
+# 12. RECEIPT PARSER
+
+Tạo:
+
+```text
+ReceiptParser
+```
+
+Đây là một trong những module quan trọng nhất.
+
+Input:
+
+```text
+raw OCR text
+```
+
+Output:
+
+```text
+ParsedReceipt
+```
+
+Model:
+
+```text
+merchant
+amount
+transactionDate
+merchantConfidence
+amountConfidence
+dateConfidence
+```
+
+Có thể thêm:
+
+```text
+warnings
+```
+
+nếu cần.
+
+---
+
+# 13. TEXT NORMALIZATION
+
+Trước regex:
+
+```text
+OCR raw text
+ ↓
+Trim
+ ↓
+Normalize whitespace
+ ↓
+Normalize Unicode where appropriate
+ ↓
+Normalize common OCR mistakes where safe
+ ↓
+Line splitting
+```
+
+Không được normalization quá mạnh làm mất dữ liệu.
+
+Giữ nguyên:
+
+```text
+raw OCR text
+```
+
+để lưu vào database.
+
+---
+
+# 14. TOTAL / AMOUNT PARSER
+
+Parser phải hỗ trợ ít nhất các dạng:
+
+```text
+150,000 VND
+150.000 đ
+150000
+150 000
+150,000
+150.000
+```
+
+và các keyword thường thấy:
+
+```text
+TOTAL
+TOTAL AMOUNT
+GRAND TOTAL
+TỔNG
+TỔNG CỘNG
+THÀNH TIỀN
+TỔNG TIỀN
+PAYMENT
+AMOUNT
+```
+
+Chiến lược không được chỉ là:
+
+```text
+take first number
+```
+
+Phải ưu tiên số tiền gần các keyword tổng tiền.
+
+Flow:
+
+```text
+Find total-related lines
+        ↓
+Extract money candidates
+        ↓
+Normalize amount
+        ↓
+Score candidates
+        ↓
+Choose best candidate
+```
+
+Nếu không tìm được total chắc chắn:
+
+```text
+amount = null
+```
+
+hoặc confidence thấp.
+
+Không tự động tạo dữ liệu giả.
+
+---
+
+# 15. AMOUNT NORMALIZATION
+
+Ví dụ:
+
+```text
+150.000
+```
+
+→
+
+```text
+150000
+```
+
+Ví dụ:
+
+```text
+150,000
+```
+
+→
+
+```text
+150000
+```
+
+Ví dụ:
+
+```text
+150000
+```
+
+→
+
+```text
+150000
+```
+
+Cẩn thận với decimal formats.
+
+Context Việt Nam ưu tiên:
+
+```text
+150.000 = 150000 VND
+```
+
+Không được biến:
+
+```text
+150.000
+```
+
+thành:
+
+```text
+150
+```
+
+---
+
+# 16. DATE PARSER
+
+Hỗ trợ ít nhất:
+
+```text
+DD/MM/YYYY
+DD-MM-YYYY
+DD.MM.YYYY
+```
+
+Ví dụ:
+
+```text
+05/10/2026
+05-10-2026
+05.10.2026
+```
+
+Normalize về:
+
+```text
+DateTime
+```
+
+Kiểm tra date validity.
+
+Không nhận ngày vô lý như:
+
+```text
+99/99/2026
+```
+
+Nếu không tìm thấy date:
+
+```text
+transactionDate = null
+```
+
+và cho user nhập thủ công ở Review Screen.
+
+---
+
+# 17. MERCHANT PARSER
+
+Merchant khó parse hơn amount và date.
+
+Không được hard-code chỉ một vài cửa hàng.
+
+Sử dụng heuristic.
+
+Chiến lược:
+
+```text
+Take first relevant non-empty lines
+        ↓
+Remove lines likely to be:
+- phone
+- hotline
+- address
+- tax code
+- website
+- email
+- receipt metadata
+- dates
+- totals
+        ↓
+Score candidates
+        ↓
+Choose best merchant candidate
+```
+
+Ưu tiên:
+
+* dòng nằm ở phần đầu receipt
+* chứa nhiều alphabet
+* ngắn/vừa phải
+* ít chữ số
+* không giống phone number
+* không giống address
+* không chứa total/date keywords
+
+Có thể bổ sung merchant pattern nhưng không được phụ thuộc hoàn toàn vào danh sách merchant hard-coded.
+
+---
+
+# 18. CONFIDENCE SCORING
+
+Implement confidence cho:
+
+```text
+merchant
+amount
+date
+```
+
+Ví dụ:
+
+```text
+0.95 = high confidence
+0.75 = medium confidence
+0.45 = low confidence
+```
+
+Logic scoring phải có ý nghĩa.
+
+Không cần claim rằng confidence là ML probability. Đây chỉ là heuristic score.
+
+Trong UI có thể dùng confidence để:
+
+```text
+high confidence → auto-filled
+low confidence → highlight for review
+```
+
+---
+
+# 19. REVIEW SCREEN
+
+Đây là bắt buộc.
+
+Sau OCR + parser:
+
+```text
+Review Expense
+```
+
+Hiển thị receipt thumbnail.
+
+Fields:
+
+```text
+Merchant
+Amount
+Date
+Category
+```
+
+Tất cả các field đều có thể chỉnh sửa.
+
+Ví dụ:
+
+```text
+Merchant
+[ VinMart                 ]
+
+Amount
+[ 150000                  ]
+
+Date
+[ 05/10/2026              ]
+
+Category
+[ Food ▼                  ]
+```
+
+Button:
+
+```text
+Save Expense
+```
+
+Bổ sung validation:
+
+```text
+merchant cannot be empty
+amount > 0
+date valid
+category selected
+```
+
+---
+
+# 20. RECEIPT IMAGE STORAGE
+
+Không lưu ảnh binary trực tiếp vào SQLite.
+
+Lưu file local trong application storage.
+
+Flow:
+
+```text
+Captured/Cropped image
+        ↓
+Resize/compress when appropriate
+        ↓
+Save to app documents/support directory
+        ↓
+Store file path in SQLite
+```
+
+Tên file phải unique.
+
+Ví dụ:
+
+```text
+receipt_20261005_193000_xxx.jpg
+```
+
+Database chỉ lưu:
+
+```text
+receipt_image_path
+```
+
+---
+
+# 21. EXPENSE HISTORY
+
+Tạo History screen.
+
+Hiển thị:
+
+```text
+merchant
+amount
+date
+category
+thumbnail
+```
+
+Sắp xếp:
+
+```text
+newest first
+```
+
+Có thể thêm:
+
+```text
+search
+category filter
+date filter
+```
+
+nếu implementation ổn định.
+
+Mỗi item có thể tap để mở Detail.
+
+---
+
+# 22. EXPENSE DETAIL
+
+Hiển thị:
+
+```text
+Receipt image
+Merchant
+Amount
+Date
+Category
+Created at
+```
+
+Có thể có:
+
+```text
+Edit
+Delete
+```
+
+Nếu implement Edit/Delete phải cập nhật dashboard/charts sau thao tác.
+
+---
+
+# 23. EMPTY STATES
+
+Không được để màn hình trống.
+
+Dashboard chưa có data:
+
+```text
+No expenses yet
+Scan your first receipt
+```
+
+History chưa có data:
+
+```text
+No expense records
+```
+
+Chart chưa có data:
+
+```text
+No spending data
+```
+
+---
+
+# 24. ERROR HANDLING
+
+Handle:
+
+```text
+camera permission denied
+camera initialization failed
+flash unsupported
+focus unsupported
+crop failed
+OCR failed
+no OCR text detected
+parser found no amount
+parser found no date
+invalid amount
+invalid date
+database error
+file storage error
+```
+
+Không để exception làm app crash.
+
+User-friendly error messages.
+
+---
+
+# 25. PERMISSION HANDLING
+
+Camera permission phải được xử lý rõ:
+
+```text
+request
+granted
+denied
+permanently denied
+```
+
+Nếu denied:
+
+```text
+Explain why camera permission is required
+Provide retry path
+```
+
+Không crash.
+
+---
+
+# 26. CUSTOM DONUT/PIE CHART
+
+Tuyệt đối:
+
+```text
+DO NOT use fl_chart
+DO NOT use Syncfusion Charts
+DO NOT use any chart library
+```
+
+Phải tự implement:
+
+```text
+CustomPainter
+```
+
+Sử dụng Canvas APIs phù hợp như:
+
+```text
+drawArc
+drawCircle
+drawText
+```
+
+Data:
+
+```text
+category totals
+```
+
+Tính:
+
+```text
+categoryPercentage =
+categoryAmount / totalAmount
+```
+
+Donut phải có:
+
+* segments
+* center hole
+* animation
+* legend
+* labels/percentage hợp lý
+
+Nếu quá nhiều category, ưu tiên readability.
+
+---
+
+# 27. DONUT ANIMATION
+
+Dùng:
+
+```text
+AnimationController
+Tween
+AnimatedBuilder
+CustomPainter
+```
+
+Khi chart xuất hiện:
+
+```text
+0%
+→
+100%
+```
+
+Animation mượt.
+
+Không tạo unnecessary rebuilds.
+
+---
+
+# 28. WEEKLY BAR CHART
+
+Không dùng third-party chart package.
+
+Implement bằng:
+
+```text
+CustomPainter
+```
+
+7 ngày:
+
+```text
+Mon
+Tue
+Wed
+Thu
+Fri
+Sat
+Sun
+```
+
+Hoặc dùng weekday localized phù hợp.
+
+Mỗi bar thể hiện:
+
+```text
+daily total spending
+```
+
+Chart phải tự scale theo max value.
+
+Handle:
+
+```text
+all values = 0
+one value very large
+negative impossible values
+```
+
+---
+
+# 29. BAR CHART ANIMATION
+
+Khi load dashboard:
+
+```text
+bars grow from 0
+→
+actual value
+```
+
+Sử dụng animation controller.
+
+Không animate quá lâu.
+
+---
+
+# 30. CHART INTERACTION
+
+Nếu feasible, hỗ trợ tap.
+
+Ví dụ:
+
+```text
+Tap Food
+→ Food: 500,000 ₫
+```
+
+hoặc:
+
+```text
+Tap Monday
+→ Monday: 120,000 ₫
+```
+
+Có thể dùng GestureDetector + coordinate mapping.
+
+Nếu interaction gây phức tạp hoặc mất ổn định, ưu tiên animation + correct rendering.
+
+---
+
+# 31. STATE MANAGEMENT
+
+Dùng Provider hoặc Riverpod.
+
+Tạo:
+
+```text
+ExpenseProvider
+```
+
+Responsibilities:
+
+```text
+loadExpenses()
+addExpense()
+updateExpense()
+deleteExpense()
+
+getTotalSpending()
+getCategorySpending()
+getWeeklySpending()
+getRecentExpenses()
+```
+
+UI không được tự query SQLite trực tiếp.
+
+Không viết SQL trong Widgets.
+
+---
+
+# 32. REPOSITORY LAYER
+
+Ví dụ:
+
+```text
+ExpenseRepository
+```
+
+Responsibilities:
+
+```text
+getAllExpenses()
+getExpenseById()
+insertExpense()
+updateExpense()
+deleteExpense()
+getCategoryTotals()
+getWeeklyTotals()
+```
+
+Repository giao tiếp với DAO/database layer.
+
+---
+
+# 33. DATABASE LIFECYCLE
+
+Implement:
+
+```text
+database open
+database create
+database upgrade
+```
+
+Có versioning.
+
+Ví dụ:
+
+```text
+version 1
+```
+
+Chuẩn bị cấu trúc migration rõ ràng để sau này có thể thêm field.
+
+---
+
+# 34. UI/UX REQUIREMENTS
+
+Style:
+
+```text
+Material 3
+clean finance app
+modern
+minimal
+mobile-first
+```
+
+Ưu tiên:
+
+```text
+clear hierarchy
+large readable amount
+consistent spacing
+rounded cards
+accessible touch target
+consistent typography
+```
+
+Không cần animation lạm dụng.
+
+---
+
+# 35. NAVIGATION
+
+Tạo navigation hợp lý.
+
+Đề xuất:
+
+```text
+Home
+History
+Scan
+```
+
+Scan là primary action.
+
+Có thể sử dụng:
+
+```text
+NavigationBar
+```
+
+hoặc structure tương đương.
+
+Camera screen có thể mở fullscreen.
+
+---
+
+# 36. OFFLINE REQUIREMENT
+
+Core functionality phải offline:
+
+```text
+camera
+OCR
+parser
+database
+history
+statistics
+charts
+```
+
+Không gửi receipt/image lên server.
+
+Không yêu cầu backend.
+
+Không yêu cầu Firebase/Supabase.
+
+Không tạo API server.
+
+---
+
+# 37. OCR PERFORMANCE
+
+Specification có đề cập:
+
+```text
+sub-100ms on-device text extraction
+```
+
+Không được hard-code hoặc giả tạo benchmark.
+
+Thay vào đó:
+
+1. Implement efficient pipeline.
+2. Avoid unnecessary image copies.
+3. Resize image nếu kích thước quá lớn.
+4. Reuse recognizer appropriately.
+5. Measure thực tế nếu có thể.
+
+Nếu benchmark không đạt 100ms trên device test:
+
+* không fake số liệu
+* ghi nhận limitation trong report.
+
+---
+
+# 38. TESTING
+
+Phải tạo tests tối thiểu cho parser.
+
+## Unit tests
+
+Test:
+
+```text
+amount parser
+date parser
+merchant parser
+normalization
+currency formatting
+```
+
+### Amount cases
+
+```text
+150,000 VND
+150.000 đ
+150000
+150 000
+TỔNG CỘNG 150.000đ
+```
+
+### Date cases
+
+```text
+05/10/2026
+05-10-2026
+05.10.2026
+```
+
+### Invalid cases
+
+```text
+99/99/2026
+no amount
+no date
+empty OCR
+```
+
+---
+
+# 39. DATABASE TESTING
+
+Kiểm tra:
+
+```text
+insert
+read
+update
+delete
+```
+
+và đảm bảo data persistence sau restart app.
+
+---
+
+# 40. WIDGET TESTING
+
+Nếu phù hợp, test:
+
+```text
+Dashboard renders
+Review form renders
+Expense card renders
+Empty state renders
+```
+
+Không cần test mọi pixel.
+
+---
+
+# 41. TEST DATA / DEMO RECEIPTS
+
+Tạo một số OCR fixture/sample text để test parser.
+
+Ví dụ:
+
+```text
+VINMART
+123 NGUYEN VAN LINH
+HOTLINE: 19001234
+05/10/2026
+
+Milk        30.000
+Bread       20.000
+
+TONG CONG   150.000 đ
+```
+
+và:
+
+```text
+CIRCLE K
+DATE 05/10/2026
+TOTAL 45,000 VND
+```
+
+Parser tests phải verify output.
+
+---
+
+# 42. LOGGING
+
+Trong development có thể log:
+
+```text
+OCR raw text
+parsed merchant
+parsed amount
+parsed date
+confidence
+```
+
+Nhưng tránh log quá nhiều trong production release.
+
+Có thể dùng debug logging wrapper.
+
+---
+
+# 43. PERFORMANCE / CLEAN CODE
+
+Phải chú ý:
+
+```text
+dispose CameraController
+dispose AnimationController
+close TextRecognizer
+dispose TextEditingController
+avoid rebuild entire dashboard unnecessarily
+avoid loading huge images directly
+```
+
+Không memory leak.
+
+Không giữ camera chạy khi rời screen.
+
+---
+
+# 44. IMAGE THUMBNAIL OPTIMIZATION
+
+Receipt list không nên load ảnh full-resolution.
+
+Tạo thumbnail hoặc resize trước khi lưu nếu cần.
+
+Mục tiêu:
+
+```text
+fast scrolling
+low memory
+small storage footprint
+```
+
+---
+
+# 45. UI FLOW ERROR CASE
+
+Nếu parser không tìm được amount:
+
+```text
+Review:
+Amount [ required ]
+```
+
+Nếu không có date:
+
+```text
+Date [ select date ]
+```
+
+Nếu không nhận được merchant:
+
+```text
+Merchant [ enter merchant ]
+```
+
+User vẫn có thể nhập thủ công.
+
+Điều kiện:
+
+```text
+OCR failure must not make manual expense entry impossible.
+```
+
+---
+
+# 46. MANUAL EXPENSE ENTRY
+
+Nên implement luôn đường dẫn:
+
+```text
+Add Expense Manually
+```
+
+để app vẫn dùng được khi OCR fail.
+
+Form:
+
+```text
+merchant
+amount
+date
+category
+optional receipt image
+```
+
+Có thể đặt trong History hoặc Dashboard.
+
+---
+
+# 47. LOCAL DATE/CURRENCY
+
+App dành cho dữ liệu Việt Nam.
+
+UI ưu tiên:
+
+```text
+VND / ₫
+```
+
+Format readable.
+
+Ví dụ:
+
+```text
+150.000 ₫
+```
+
+hoặc style thống nhất mà bạn chọn.
+
+Database vẫn lưu integer:
+
+```text
+150000
+```
+
+Date trong database nên có format ổn định, ví dụ ISO:
+
+```text
+2026-10-05
+```
+
+---
+
+# 48. ACCESSIBILITY & ROBUSTNESS
+
+Button phải có:
+
+```text
+minimum touch target
+semantic label khi phù hợp
+```
+
+Text không overflow.
+
+Receipt merchant dài phải handle.
+
+Amount lớn không được overflow.
+
+---
+
+# 49. README
+
+Cập nhật `README.md` hoàn chỉnh.
+
+Bắt buộc có:
+
+```text
+# OCR Expense Tracker
+
+## Project Overview
+
+## Features
+
+## Tech Stack
+
+## Architecture
+
+## OCR Pipeline
+
+## Receipt Parsing Strategy
+
+## Database Schema
+
+## Project Structure
+
+## Requirements
+
+## Installation
+
+flutter pub get
+
+flutter run
+
+## Run Tests
+
+flutter test
+
+## Build APK
+
+flutter build apk --release
+
+## Output APK
+
+path/to/app-release.apk
+
+## Demo
+
+link placeholder / release link
+
+## Limitations
+
+## Future Improvements
+```
+
+Thêm screenshots nếu có.
+
+---
+
+# 50. TECHNICAL REPORT
+
+Tạo report 2–4 trang PDF.
+
+Tên đề xuất:
+
+```text
+OCR_Expense_Tracker_Technical_Report.pdf
+```
+
+Nội dung:
+
+## 1. Introduction
+
+Problem:
+
+physical receipts require manual data entry.
+
+## 2. Objectives
+
+* OCR
+* parsing
+* local storage
+* visualization
+
+## 3. Technologies
+
+```text
+Flutter
+Dart
+Google ML Kit
+SQLite
+CustomPainter
+```
+
+## 4. System Architecture
+
+Đưa architecture diagram.
+
+## 5. OCR Pipeline
+
+```text
+Camera
+→ Crop
+→ ML Kit
+→ Raw Text
+→ Parser
+→ Review
+→ Save
+```
+
+## 6. Parsing Strategy
+
+Giải thích:
+
+```text
+normalization
+regex
+keyword matching
+heuristic scoring
+confidence
+```
+
+## 7. Database
+
+Đưa schema.
+
+## 8. Visualization
+
+Giải thích:
+
+```text
+CustomPainter
+donut chart
+weekly bar chart
+animation
+```
+
+## 9. Testing / Results
+
+Đưa test examples.
+
+## 10. Limitations
+
+Ví dụ:
+
+```text
+OCR quality depends on receipt image quality
+merchant detection uses heuristics
+some receipt layouts may require manual correction
+```
+
+## 11. Conclusion
+
+Tóm tắt kết quả.
+
+Không được bịa benchmark hoặc accuracy chưa thực sự đo.
+
+---
+
+# 51. APK RELEASE
+
+Thực hiện:
+
+```bash
+flutter clean
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+Nếu build thành công:
+
+xác định chính xác file:
+
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+Nếu tên file khác, ghi path thực tế.
+
+Không được nói "APK built successfully" nếu command thất bại.
+
+---
+
+# 52. GIT
+
+Kiểm tra git status.
+
+Không commit secret.
+
+Không đưa vào repository:
+
+```text
+.dart_tool/
+build/
+.env
+API keys
+private credentials
+```
+
+Có `.gitignore` đúng.
+
+Nếu git repository đã tồn tại:
+
+giữ lịch sử.
+
+Nếu agent được phép commit, chia commit hợp lý theo milestone.
+
+---
+
+# 53. FINAL QUALITY CHECK
+
+Trước khi kết thúc, thực hiện checklist:
+
+```text
+[ ] Flutter project builds
+[ ] flutter analyze passes or only has justified non-blocking warnings
+[ ] flutter test passes
+[ ] Camera opens
+[ ] Flash toggle works
+[ ] Tap focus works
+[ ] Receipt framing overlay exists
+[ ] Capture works
+[ ] Crop works
+[ ] ML Kit OCR works
+[ ] Raw OCR text obtained
+[ ] Amount parser works
+[ ] Date parser works
+[ ] Merchant heuristic works
+[ ] Confidence values generated
+[ ] Review form works
+[ ] Manual editing works
+[ ] Category selection works
+[ ] Save works
+[ ] SQLite persistence works
+[ ] Receipt image stored locally
+[ ] History works
+[ ] Detail works
+[ ] Delete/Edit if implemented
+[ ] Dashboard statistics work
+[ ] Donut chart uses CustomPainter
+[ ] Donut animation works
+[ ] Bar chart uses CustomPainter
+[ ] Bar animation works
+[ ] Empty states work
+[ ] Error handling works
+[ ] No third-party chart library
+[ ] README updated
+[ ] Technical report created
+[ ] Release APK built if environment supports it
+```
+
+---
+
+# 54. ACCEPTANCE CRITERIA
+
+Project chỉ được xem là hoàn thành khi scenario sau chạy được:
+
+```text
+1. Launch application
+2. Dashboard loads
+3. Tap Scan Receipt
+4. Camera appears
+5. Toggle flash
+6. Tap to focus
+7. Put receipt inside framing area
+8. Capture image
+9. Crop receipt
+10. Run on-device OCR
+11. Extract raw text
+12. Detect merchant
+13. Detect total amount
+14. Detect transaction date
+15. Show parsed values
+16. User edits values
+17. User selects category
+18. Save expense
+19. Store record in SQLite
+20. Store receipt thumbnail locally
+21. Expense appears in History
+22. Dashboard updates automatically
+23. Donut chart updates
+24. Weekly bar chart updates
+25. Charts animate
+26. App survives restart with data intact
+```
+
+---
+
+# 55. IMPORTANT ENGINEERING RULES
+
+Không làm các việc sau:
+
+```text
+❌ Không dùng Firebase/Supabase/backend cho core requirement
+❌ Không dùng cloud OCR API
+❌ Không dùng third-party chart library
+❌ Không hard-code OCR output
+❌ Không fake OCR
+❌ Không fake benchmark
+❌ Không lưu receipt binary trực tiếp trong SQLite nếu không cần
+❌ Không để SQL trực tiếp trong UI
+❌ Không để OCR/parser logic trong widget
+❌ Không crash khi permission denied
+❌ Không auto-save OCR result chưa được review
+```
+
+---
+
+# 56. IMPLEMENTATION STRATEGY
+
+Triển khai theo thứ tự:
+
+```text
+PHASE 1
+Project setup
+↓
+PHASE 2
+Architecture + database
+↓
+PHASE 3
+Manual expense CRUD
+↓
+PHASE 4
+Dashboard
+↓
+PHASE 5
+Camera + capture
+↓
+PHASE 6
+Crop
+↓
+PHASE 7
+ML Kit OCR
+↓
+PHASE 8
+Receipt parser
+↓
+PHASE 9
+Review screen
+↓
+PHASE 10
+Image storage
+↓
+PHASE 11
+History/detail
+↓
+PHASE 12
+Donut CustomPainter
+↓
+PHASE 13
+Weekly Bar CustomPainter
+↓
+PHASE 14
+Animation
+↓
+PHASE 15
+Testing
+↓
+PHASE 16
+UI polish
+↓
+PHASE 17
+README
+↓
+PHASE 18
+Technical report PDF
+↓
+PHASE 19
+Release APK
+```
+
+---
+
+# 57. AGENT EXECUTION RULE
+
+Trong quá trình triển khai:
+
+```text
+Inspect
+→ Implement
+→ Run
+→ Detect errors
+→ Fix
+→ Run again
+→ Verify
+→ Continue
+```
+
+Không chỉ tạo code trên lý thuyết.
+
+Phải thực sự:
+
+```text
+install dependencies
+run analyzer
+run tests
+build
+```
+
+bất cứ khi nào môi trường cho phép.
+
+Nếu có lỗi, ưu tiên sửa lỗi gốc thay vì workaround tạm thời.
+
+Sau mỗi phase, ghi ngắn gọn:
+
+```text
+Completed:
+- ...
+Tests:
+- ...
+Issues:
+- ...
+Next:
+- ...
+```
+
+Không cần hỏi tôi xác nhận sau từng phase.
+
+---
+
+# 58. FINAL OUTPUT FROM THE AGENT
+
+Khi hoàn thành, trả về một báo cáo ngắn chứa:
+
+```text
+PROJECT STATUS
+--------------
+
+Implemented:
+- ...
+
+Testing:
+- flutter analyze: ...
+- flutter test: ...
+- flutter build apk --release: ...
+
+APK:
+- exact path
+
+README:
+- updated
+
+Technical Report:
+- exact path
+
+Known limitations:
+- ...
+```
+
+Nếu một phần không thể hoàn thành do giới hạn môi trường:
+
+```text
+DO NOT pretend it is complete.
+```
+
+Phải chỉ rõ:
+
+```text
+What failed
+Why it failed
+What was completed
+What manual step remains
+```
+
+# FINAL OBJECTIVE
+
+Hãy biến repository hiện tại thành một **Flutter application hoàn chỉnh, chạy Android, offline-first, có OCR receipt scanning, Regex/heuristic parsing, SQLite persistence, local receipt storage, history, dashboard statistics, animated CustomPainter charts, tests, README, technical report và release APK**.
+
+Ưu tiên **độ ổn định, đúng requirement và khả năng demo thực tế** hơn việc thêm các tính năng không nằm trong specification.
